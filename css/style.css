@@ -172,6 +172,18 @@ body {
 
 .gpx-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
+/* Visually hidden rather than display:none — some mobile browsers (notably
+   Safari/iOS) won't reliably open the native file picker via .click() on an
+   input that's removed from layout with `hidden`/display:none. */
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  z-index: -1;
+}
+
 .btn-import {
   display: inline-flex;
   align-items: center;
