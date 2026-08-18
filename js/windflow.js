@@ -9,9 +9,9 @@ export function createWindFlow(map, containerEl) {
   const ctx = canvas.getContext("2d");
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const PARTICLE_COUNT = window.innerWidth < 560 ? 70 : 120;
-  const TRAIL_LENGTH = 8;
-  const DEG_PER_KMH_FRAME = 0.0000045;
+  const PARTICLE_COUNT = window.innerWidth < 560 ? 140 : 260;
+  const TRAIL_LENGTH = 11;
+  const DEG_PER_KMH_FRAME = 0.0000065;
 
   let samples = [];
   let particles = [];
@@ -65,18 +65,19 @@ export function createWindFlow(map, containerEl) {
       const a = map.latLngToContainerPoint([trail[i - 1].lat, trail[i - 1].lon]);
       const b = map.latLngToContainerPoint([trail[i].lat, trail[i].lon]);
       const alpha = (i / trail.length) * alphaScale;
-      // A light halo under the colored stroke keeps particles legible over
-      // both dark and light map tiles, the way Windy's streamlines read on
-      // any basemap.
-      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
-      ctx.lineWidth = 3.2;
+      // Windy-style: a bright white streak with a thin dark outline
+      // underneath, so it reads on any basemap tile — light or dark —
+      // rather than blending into roads/land the way a single flat color
+      // does.
+      ctx.strokeStyle = `rgba(15, 30, 24, ${alpha * 0.55})`;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
 
-      ctx.strokeStyle = `rgba(29, 58, 46, ${alpha})`;
-      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = 1.3;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -109,7 +110,7 @@ export function createWindFlow(map, containerEl) {
         return;
       }
 
-      strokeTrail(p.trail, 0.75);
+      strokeTrail(p.trail, 0.9);
     });
 
     rafId = running ? requestAnimationFrame(step) : null;
