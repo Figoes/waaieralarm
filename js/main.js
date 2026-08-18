@@ -1,10 +1,13 @@
 import { parseGPX } from "./gpx.js";
 import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js";
-import { headwindComponent, classify, CLASS_LABEL, gradientColor, rgbCss } from "./wind.js";
+import { haversineKm, bearingDeg } from "./geo.js";
+import { headwindComponent, classify, CLASS_LABEL, CLASS_COLORS, compassLabel, beaufort } from "./wind.js";
 import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js";
-import { initMap, renderPlainRoute, renderForecastRoute } from "./map.js";
+import { initMap, invalidateMapSize, renderPlainRoute, renderForecastRoute } from "./map.js";
 
 const $ = (sel) => document.querySelector(sel);
+const nl = (n, opts) => n.toLocaleString("nl-NL", opts);
+const nlTime = (d) => d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" });
 
 const state = { points: null, filename: null };
 
@@ -31,10 +34,16 @@ function clearError() {
 function setPlotting(isPlotting) {
   const btn = $("#plotBtn");
   btn.disabled = isPlotting || !state.points;
-  btn.textContent = isPlotting ? "Plotting…" : "Plot forecast";
+  btn.textContent = isPlotting ? "Berekenen…" : "Verwachting berekenen";
+}
+
+function showRouteLoaded(loaded) {
+  $("#emptyState").hidden = loaded;
+  $("#mainLayout").hidden = !loaded;
 }
 
 $("#importBtn").addEventListener("click", () => $("#gpxInput").click());
+$("#importBtnEmpty").addEventListener("click", () => $("#gpxInput").click());
 
 $("#gpxInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
@@ -49,22 +58,26 @@ $("#gpxInput").addEventListener("change", async (e) => {
 
     const total = points[points.length - 1].distanceKm;
     const gain = elevationGainM(points);
+    const isLoop = haversineKm(points[0].lat, points[0].lon, points[points.length - 1].lat, points[points.length - 1].lon) < 0.3;
     $("#routeName").textContent = name || file.name;
-    $("#routeStats").textContent = `${total.toFixed(1)} km · ${gain} m elevation`;
+    $("#routeMeta").textContent = `${nl(total, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km · ${gain} hm${isLoop ? " · lus" : ""}`;
 
+    showRouteLoaded(true);
     $("#mapEmptyHint").hidden = true;
+    invalidateMapSize();
     renderPlainRoute(points);
     $("#plotBtn").disabled = false;
-    $("#timeline").innerHTML = '<span class="timeline-placeholder">Plot the forecast to see wind and weather along your ride</span>';
-    $("#windChip").hidden = true;
+    $("#timeline").innerHTML = '<span class="timeline-placeholder">Bereken de verwachting om windgegevens per kilometer te zien</span>';
     $("#mapLegend").hidden = true;
+    resetPrevailingWind();
+    resetImpactSummary();
 
     renderOutlookLoading();
     fetchDailyOutlook(points[0].lat, points[0].lon)
-      .then(renderOutlook)
+      .then((daily) => renderOutlook(daily, points))
       .catch((err) => showError(err.message));
   } catch (err) {
-    showError(err.message || "Could not read this GPX file.");
+    showError(err.message || "Kon dit GPX-bestand niet lezen.");
     state.points = null;
     $("#plotBtn").disabled = true;
   } finally {
@@ -80,16 +93,16 @@ $("#plotBtn").addEventListener("click", async () => {
   const pace = parseFloat($("#pace").value) || 25;
 
   if (Number.isNaN(startDate.getTime())) {
-    showError("Pick a departure date and time first.");
+    showError("Kies eerst een vertrekdatum en -tijd.");
     return;
   }
   const now = new Date();
   if (startDate.getTime() < now.getTime() - 3600 * 1000) {
-    showError("Departure can't be in the past.");
+    showError("Vertrek kan niet in het verleden liggen.");
     return;
   }
   if (startDate.getTime() > now.getTime() + 15 * 24 * 3600 * 1000) {
-    showError("Forecasts are only available up to 15 days ahead.");
+    showError("Voorspellingen zijn maximaal 15 dagen vooruit beschikbaar.");
     return;
   }
 
@@ -111,7 +124,7 @@ $("#plotBtn").addEventListener("click", async () => {
     });
 
     if (!anyWeather) {
-      showError("No forecast data was available for that time — try a different departure.");
+      showError("Voor dit tijdstip was geen voorspelling beschikbaar — probeer een ander vertrek.");
       setPlotting(false);
       return;
     }
@@ -119,19 +132,20 @@ $("#plotBtn").addEventListener("click", async () => {
     renderForecastRoute(state.points, withWeather);
     renderTimeline(withWeather);
     updatePrevailingWind(withWeather);
+    updateImpactSummary(state.points, withWeather);
     $("#mapLegend").hidden = false;
   } catch (err) {
-    showError(err.message || "Could not fetch the forecast.");
+    showError(err.message || "Kon de verwachting niet ophalen.");
   } finally {
     setPlotting(false);
   }
 });
 
-function windArrowSVG(rotateDeg, colorVar = "var(--wind-blue)") {
+function windArrowSVG(rotateDeg, colorCss = "currentColor") {
   return (
-    `<svg viewBox="0 0 24 24"><g transform="translate(12,12) rotate(${rotateDeg})">` +
-    `<line x1="0" y1="8" x2="0" y2="-8" stroke="${colorVar}" stroke-width="2.5" stroke-linecap="round"/>` +
-    `<path d="M0,-8 L-4,-2 L4,-2 Z" fill="${colorVar}"/></g></svg>`
+    `<svg viewBox="0 0 16 16" fill="none"><g transform="rotate(${rotateDeg} 8 8)">` +
+    `<path d="M8 2.5V13" stroke="${colorCss}" stroke-width="2" stroke-linecap="round"/>` +
+    `<path d="M4.8 5.8L8 2.5 11.2 5.8" stroke="${colorCss}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g></svg>`
   );
 }
 
@@ -140,78 +154,107 @@ function renderTimeline(samples) {
   el.innerHTML = "";
   samples.forEach((s) => {
     const card = document.createElement("div");
-    card.className = "card wp-card";
+    card.className = "wp-card";
     if (!s.weather) {
       card.innerHTML = `
-        <div class="wp-top"><span class="wp-dist">${s.distanceKm.toFixed(0)} km</span></div>
-        <div class="wp-weather"><span>No forecast</span></div>
+        <div class="wp-top"><span class="wp-dist">${Math.round(s.distanceKm)} km</span></div>
+        <div class="wp-weather"><span>Geen voorspelling</span></div>
       `;
       el.appendChild(card);
       return;
     }
     const rotate = (s.weather.windDir + 180) % 360;
-    const cls = s.cls || "cross";
-    const rgb = gradientColor(s.component ?? 0);
+    const cls = s.cls || "zij";
+    const colors = CLASS_COLORS[cls];
     card.innerHTML = `
       <div class="wp-top">
-        <span class="wp-dist">${s.distanceKm.toFixed(0)} km</span>
-        <span class="wp-eta">${s.eta.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        <span class="wp-dist">${Math.round(s.distanceKm)} km</span>
+        <span class="wp-time">${nlTime(s.eta)}</span>
       </div>
       <div class="wp-wind">
-        <span class="arrow-badge">${windArrowSVG(rotate)}</span>
-        <span class="speed">${Math.round(s.weather.windSpeed)}<small> km/h</small></span>
+        <span class="badge" style="background:${colors.bg}; color:${colors.text};">${windArrowSVG(rotate)}</span>
+        <span class="kmh">${Math.round(s.weather.windSpeed)}</span>
+        <span class="unit-inline">km/h</span>
       </div>
       <div class="wp-weather"><span>${Math.round(s.weather.temp)}°C</span><span>${Math.round(s.weather.precipProb)}%</span></div>
-      <span class="wp-badge" style="background:${rgbCss(rgb, 0.14)}; color:${rgbCss(rgb)};">${CLASS_LABEL[cls]}</span>
+      <div class="wp-label" style="color:${colors.text};">${CLASS_LABEL[cls]}</div>
     `;
     el.appendChild(card);
   });
+}
+
+function resetPrevailingWind() {
+  $("#prevailingKmh").textContent = "–";
+  $("#prevailingDir").textContent = "–";
+  $("#windRoseArrow").setAttribute("transform", "rotate(0 60 60)");
 }
 
 function updatePrevailingWind(samples) {
   const withWeather = samples.filter((s) => s.weather);
   if (withWeather.length === 0) return;
   const first = withWeather[0].weather;
-  const chip = $("#windChip");
-  chip.hidden = false;
-  $("#windChipValue").textContent = `${Math.round(first.windSpeed)} km/h`;
-  $("#windChipArrow").setAttribute("transform", `translate(12,12) rotate(${(first.windDir + 180) % 360})`);
+  $("#prevailingKmh").textContent = Math.round(first.windSpeed);
+  $("#prevailingDir").textContent = `${compassLabel(first.windDir)} · ${beaufort(first.windSpeed)} Bft`;
+  const rotate = (first.windDir + 180) % 360;
+  $("#windRoseArrow").setAttribute("transform", `rotate(${rotate} 60 60)`);
+}
+
+function resetImpactSummary() {
+  $("#impactTegenKm").textContent = "–";
+  $("#impactZijKm").textContent = "–";
+  $("#impactMeeKm").textContent = "–";
+}
+
+function updateImpactSummary(points, samples) {
+  const totals = { tegen: 0, zij: 0, mee: 0 };
+  let sIdx = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const segKm = points[i + 1].distanceKm - points[i].distanceKm;
+    const midDist = (points[i].distanceKm + points[i + 1].distanceKm) / 2;
+    while (sIdx < samples.length - 1 && samples[sIdx + 1].distanceKm <= midDist) sIdx++;
+    const cls = samples[sIdx].cls || "zij";
+    totals[cls] += segKm;
+  }
+  $("#impactTegenKm").textContent = Math.round(totals.tegen);
+  $("#impactZijKm").textContent = Math.round(totals.zij);
+  $("#impactMeeKm").textContent = Math.round(totals.mee);
 }
 
 function renderOutlookLoading() {
-  $("#outlookBody").innerHTML = '<span class="outlook-placeholder">Loading…</span>';
+  $("#outlookRow").innerHTML = '<span class="timeline-placeholder">Laden…</span>';
 }
 
-function renderOutlook(days) {
-  const body = $("#outlookBody");
+function renderOutlook(days, points) {
+  const row = $("#outlookRow");
   if (!days.length) {
-    body.innerHTML = '<span class="outlook-placeholder">No outlook available for this location</span>';
+    row.innerHTML = '<span class="timeline-placeholder">Geen vooruitblik beschikbaar voor deze locatie</span>';
     return;
   }
+  const routeBearing = bearingDeg(points[0].lat, points[0].lon, points[points.length - 1].lat, points[points.length - 1].lon);
   const selectedDate = $("#start").value ? $("#start").value.slice(0, 10) : null;
 
-  const row = document.createElement("div");
-  row.className = "outlook-row";
+  row.innerHTML = "";
   days.forEach((d) => {
+    const { angleDiff } = headwindComponent(routeBearing, d.windDir, d.windSpeed);
+    const cls = classify(angleDiff);
+    const colors = CLASS_COLORS[cls];
+    const rotate = (d.windDir + 180) % 360;
+    const dow = new Date(d.date + "T00:00:00").toLocaleDateString("nl-NL", { weekday: "short" }).toLowerCase();
+
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "outlook-day" + (d.date === selectedDate ? " selected" : "");
-    const dow = new Date(d.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "narrow" });
-    const rotate = (d.windDir + 180) % 360;
-    const arrowColor = d.date === selectedDate ? "#ffffff" : "var(--ink-soft)";
+    btn.className = "outlook-day";
+    btn.style.cssText = "background:none;border:none;cursor:pointer;font-family:inherit;padding:0;";
     btn.innerHTML = `
       <span class="dow">${dow}</span>
-      <span class="cell">${windArrowSVG(rotate, arrowColor)}</span>
+      <span class="badge" style="background:${colors.bg}; color:${colors.text}; ${d.date === selectedDate ? `outline:2px solid ${colors.text}; outline-offset:2px;` : ""}">${windArrowSVG(rotate)}</span>
       <span class="kmh">${Math.round(d.windSpeed)}</span>
     `;
     btn.addEventListener("click", () => {
       const time = $("#start").value.slice(11) || "08:00";
       $("#start").value = `${d.date}T${time}`;
-      renderOutlook(days);
+      renderOutlook(days, points);
     });
     row.appendChild(btn);
   });
-
-  body.innerHTML = "";
-  body.appendChild(row);
 }

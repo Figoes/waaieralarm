@@ -75,7 +75,7 @@ export function createWindFlow(map, containerEl) {
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
 
-      ctx.strokeStyle = `rgba(13, 116, 201, ${alpha})`;
+      ctx.strokeStyle = `rgba(29, 58, 46, ${alpha})`;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);

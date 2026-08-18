@@ -1,99 +1,189 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Waaieralarm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-  <nav class="topnav">
-    <div class="wordmark">
-      <span class="glyph">🚴💨</span>
-      <h1>Waaieralarm</h1>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="wordmark">
+        <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <circle cx="16" cy="16" r="15" stroke="#E2542B" stroke-width="2" />
+          <path d="M16 5 L23 16 L16 13.4 L9 16 Z" fill="#E2542B" />
+          <path d="M16 13.4 L16 27" stroke="#E2542B" stroke-width="2" />
+          <path d="M9.5 22.5 L22.5 22.5" stroke="#E2542B" stroke-width="2" stroke-linecap="round" opacity="0.45" />
+        </svg>
+        <span>Waaieralarm</span>
+      </div>
     </div>
-  </nav>
+  </header>
 
   <div class="page">
 
-    <section class="card top-band">
-      <div class="tb-route">
-        <span class="route-icon-sm">🗺️</span>
-        <div style="min-width:0;">
-          <div class="route-name-sm" id="routeName">No route loaded</div>
-          <div class="route-stats-sm" id="routeStats">Import a GPX file to get started</div>
+    <section class="card control-bar">
+      <div class="field">
+        <div class="field-label">Route</div>
+        <div class="route-summary">
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+            <rect width="34" height="34" rx="3" fill="var(--paper)" />
+            <path d="M8 25 C 11 25, 11 16, 15 16 S 20 21, 24 12" stroke="var(--ink)" stroke-width="2.2" fill="none" stroke-linecap="round" />
+            <circle cx="8" cy="25" r="2.6" fill="var(--accent)" stroke="var(--ink)" stroke-width="1.6" />
+            <circle cx="24" cy="12" r="2.6" fill="var(--ink)" />
+          </svg>
+          <div>
+            <div class="route-name" id="routeName">Geen route</div>
+            <div class="route-meta" id="routeMeta">Importeer een GPX-bestand</div>
+          </div>
         </div>
       </div>
-      <div class="tb-field">
-        <label for="gpxInput">GPX file</label>
-        <div class="gpx-actions">
-          <input type="file" id="gpxInput" accept=".gpx" class="visually-hidden-input" />
-          <button class="btn-import" id="importBtn" type="button">⬆ Import GPX</button>
+
+      <div class="field">
+        <div class="field-label">GPX-bestand</div>
+        <input type="file" id="gpxInput" accept=".gpx" class="visually-hidden-input" />
+        <button class="btn-secondary" id="importBtn" type="button">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 12V3M8 3L4.5 6.5M8 3l3.5 3.5M2.5 13.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+          GPX importeren
+        </button>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="start">Vertrek</label>
+        <div class="input-shell">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.4" stroke="#918B7C" stroke-width="1.6" /><path d="M8 4.6V8l2.6 1.6" stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <input id="start" type="datetime-local" />
         </div>
       </div>
-      <div class="tb-field">
-        <label for="start">Departure</label>
-        <input id="start" type="datetime-local" />
-      </div>
-      <div class="tb-field">
-        <label for="pace">Average pace</label>
-        <div class="pace-field">
+
+      <div class="field">
+        <label class="field-label" for="pace">Gem. snelheid</label>
+        <div class="input-shell input-shell-pace">
           <input id="pace" type="number" value="25" min="10" max="45" />
           <span class="pace-unit">km/h</span>
         </div>
       </div>
-      <button class="btn-plot" id="plotBtn" type="button" disabled>Plot forecast</button>
+
+      <button class="btn-primary" id="plotBtn" type="button" disabled>Verwachting berekenen</button>
     </section>
 
     <div class="error-banner" id="errorBanner" hidden></div>
 
-    <div class="layout">
+    <section class="card empty-state" id="emptyState">
+      <svg width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true" class="empty-state-icon">
+        <circle cx="60" cy="60" r="52" stroke="#E6DFD1" stroke-width="2" />
+        <circle cx="60" cy="60" r="34" stroke="#EFE8DA" stroke-width="2" />
+        <g stroke="#DED6C6" stroke-width="2" stroke-linecap="round"><path d="M60 8v9M60 112v-9M8 60h9M112 60h-9" /></g>
+        <path d="M60 24 L73 60 L60 52.5 L47 60 Z" fill="var(--ink)" />
+        <path d="M60 52.5 V94" stroke="var(--ink)" stroke-width="2.5" />
+      </svg>
+      <div class="empty-state-body">
+        <div class="field-label">Lege staat</div>
+        <h2>Nog geen route geladen</h2>
+        <p>Importeer een GPX-bestand en kies je vertrektijd. Waaieralarm rekent per kilometer uit of je kop-, zij- of meewind hebt.</p>
+      </div>
+      <button class="btn-primary empty-state-btn" id="importBtnEmpty" type="button">GPX importeren</button>
+    </section>
+
+    <div class="layout" id="mainLayout" hidden>
 
       <aside class="sidebar">
-        <div class="card outlook-card">
-          <div class="card-title">7-day wind outlook</div>
-          <div id="outlookBody">
-            <span class="outlook-placeholder">Import a route to see the week ahead</span>
-          </div>
-        </div>
 
-        <div class="card legend-card">
-          <div class="card-title">Wind impact</div>
-          <div class="wind-scale-bar"></div>
-          <div class="wind-scale-labels"><span>Headwind</span><span>Tailwind</span></div>
-        </div>
+        <section class="card panel-dark">
+          <div class="field-label field-label-dark">Heersende wind</div>
+          <div class="prevailing-row">
+            <svg width="112" height="112" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+              <circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,0.16)" stroke-width="1.5" />
+              <circle cx="60" cy="60" r="38" stroke="rgba(255,255,255,0.1)" stroke-width="1.5" />
+              <g stroke="rgba(255,255,255,0.35)" stroke-width="1.5">
+                <path d="M60 14v10M60 106v-10M14 60h10M106 60h-10" />
+                <path d="M27.2 27.2l7 7M92.8 92.8l-7-7M92.8 27.2l-7 7M27.2 92.8l7-7" opacity="0.5" />
+              </g>
+              <g id="windRoseArrow" transform="rotate(0 60 60)">
+                <path d="M60 24 L74 60 L60 52 L46 60 Z" fill="var(--accent)" />
+                <path d="M60 52 L60 96" stroke="var(--accent)" stroke-width="2.5" />
+              </g>
+              <text x="60" y="10" text-anchor="middle" font-size="12" font-weight="600" fill="rgba(255,255,255,0.5)">N</text>
+              <text x="60" y="118" text-anchor="middle" font-size="12" font-weight="600" fill="rgba(255,255,255,0.5)">Z</text>
+            </svg>
+            <div>
+              <div class="prevailing-value">
+                <span id="prevailingKmh">–</span>
+                <span class="unit">km/h</span>
+              </div>
+              <div class="prevailing-dir" id="prevailingDir">–</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="field-label">Wind, 7 dagen</div>
+          <div class="outlook-row" id="outlookRow"></div>
+        </section>
+
+        <section class="card">
+          <div class="field-label">Windimpact op de route</div>
+          <div class="impact-bar" id="impactBar">
+            <div class="impact-bar-seg" style="background:#E04A3F; border-radius:2px 0 0 2px;"></div>
+            <div class="impact-bar-seg" style="background:#EE8A3C;"></div>
+            <div class="impact-bar-seg" style="background:#E8B33C;"></div>
+            <div class="impact-bar-seg" style="background:#A8C447;"></div>
+            <div class="impact-bar-seg" style="background:#17A08A; border-radius:0 2px 2px 0;"></div>
+          </div>
+          <div class="impact-bar-labels">
+            <span>Tegenwind</span><span>Zijwind</span><span>Meewind</span>
+          </div>
+          <div class="impact-divider"></div>
+          <div class="impact-stats">
+            <div>
+              <div class="impact-stat-value"><span id="impactTegenKm">–</span><span class="unit"> km</span></div>
+              <div class="impact-stat-label" style="color:#E04A3F;">Tegen</div>
+            </div>
+            <div>
+              <div class="impact-stat-value"><span id="impactZijKm">–</span><span class="unit"> km</span></div>
+              <div class="impact-stat-label" style="color:#C08A1E;">Zij</div>
+            </div>
+            <div>
+              <div class="impact-stat-value"><span id="impactMeeKm">–</span><span class="unit"> km</span></div>
+              <div class="impact-stat-label" style="color:#17A08A;">Mee</div>
+            </div>
+          </div>
+        </section>
+
       </aside>
 
       <main class="main">
 
         <section class="card route-panel">
-          <span class="panel-label">Wind exposure</span>
-          <div class="wind-chip" id="windChip" hidden>
-            <span class="icon">
-              <svg viewBox="0 0 24 24" width="14" height="14"><g id="windChipArrow" transform="translate(12,12) rotate(0)"><line x1="0" y1="7" x2="0" y2="-8" stroke="var(--wind-blue)" stroke-width="2.2" stroke-linecap="round"/><path d="M0,-8 L-4,-2 L4,-2 Z" fill="var(--wind-blue)"/></g></svg>
-            </span>
-            <span class="text">
-              <div class="value" id="windChipValue">–</div>
-              <div class="label">Prevailing wind</div>
-            </span>
-          </div>
           <div id="map"></div>
-          <div class="map-empty-hint" id="mapEmptyHint">Upload a GPX file to see your route</div>
+          <div class="map-empty-hint" id="mapEmptyHint">Klik op "Verwachting berekenen" om de kaart te kleuren</div>
+
+          <div class="map-layer-pill">Windimpact</div>
+
           <div class="map-legend" id="mapLegend" hidden>
-            <div class="wind-scale-bar"></div>
-            <div class="wind-scale-labels"><span>Headwind</span><span>Tailwind</span></div>
+            <div class="map-legend-bar">
+              <div style="background:#E04A3F;"></div>
+              <div style="background:#E8B33C;"></div>
+              <div style="background:#A8C447;"></div>
+              <div style="background:#17A08A;"></div>
+            </div>
+            <div class="map-legend-labels"><span>Tegen</span><span>Mee</span></div>
           </div>
         </section>
 
-        <section>
+        <section class="card timeline-panel">
           <div class="timeline-head">
-            <h2>Forecast along the route</h2>
-            <span class="hint">scroll for full route →</span>
+            <h2>Verwachting langs de route</h2>
+            <span class="hint">Scroll voor hele rit →</span>
           </div>
           <div class="timeline" id="timeline">
-            <span class="timeline-placeholder">Plot the forecast to see wind and weather along your ride</span>
+            <span class="timeline-placeholder">Bereken de verwachting om windgegevens per kilometer te zien</span>
           </div>
         </section>
 
@@ -101,7 +191,10 @@
     </div>
   </div>
 
-  <footer class="note">Waaieralarm is an independent app inspired by Strava's layout patterns; it is not affiliated with or endorsed by Strava.<br>Weather data from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Map data from OpenStreetMap contributors.</footer>
+  <footer class="footer">
+    Waaieralarm is een onafhankelijke app en niet verbonden aan Strava.<br />
+    Weerdata van <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Kaartdata van OpenStreetMap-bijdragers.
+  </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="js/main.js"></script>

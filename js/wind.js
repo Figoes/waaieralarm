@@ -7,25 +7,30 @@ export function headwindComponent(travelBearingDeg, windFromDeg, windSpeedKmh) {
   return { component, angleDiff: diff };
 }
 
-// Within ~55° of a pure tailwind/headwind reads as tail/head; the rest is crosswind.
+// |Δ| ≤ 45° = meewind, 45–135° = zijwind, ≥ 135° = tegenwind.
 export function classify(angleDiff) {
   const abs = Math.abs(angleDiff);
-  if (abs <= 55) return "tail";
-  if (abs >= 125) return "head";
-  return "cross";
+  if (abs <= 45) return "mee";
+  if (abs >= 135) return "tegen";
+  return "zij";
 }
 
-export const CLASS_LABEL = { tail: "Tailwind", cross: "Crosswind", head: "Headwind" };
+export const CLASS_LABEL = { mee: "Meewind", zij: "Zijwind", tegen: "Tegenwind" };
 
-// Diverging scale: deep red (strong headwind) through amber (neutral) to deep
-// green (strong tailwind). Matches the app's --head-red/--cross-amber/--tail-green
-// at their respective stops so the legend bar lines up with the badge colors.
+// Flat semantic colors for the 7-day badges, map pills and per-km cards.
+export const CLASS_COLORS = {
+  tegen: { bg: "#FBE7E4", text: "#C4362C" },
+  zij: { bg: "#FBF1DC", text: "#B07C12" },
+  mee: { bg: "#DFF3EE", text: "#0E7F6D" },
+};
+
+// Continuous scale for the route line and the windimpact summary bar: tegen
+// → zij → mee, matching the 4-stop gradient from the Duin house style.
 const GRADIENT_STOPS = [
-  { t: -1, rgb: [178, 39, 62] },
-  { t: -0.5, rgb: [214, 94, 66] },
-  { t: 0, rgb: [201, 154, 0] },
-  { t: 0.5, rgb: [124, 173, 82] },
-  { t: 1, rgb: [23, 160, 109] },
+  { t: -1, rgb: [224, 74, 63] }, // #E04A3F
+  { t: -0.34, rgb: [232, 179, 60] }, // #E8B33C
+  { t: 0.34, rgb: [168, 196, 71] }, // #A8C447
+  { t: 1, rgb: [23, 160, 138] }, // #17A08A
 ];
 
 // component is the signed headwind/tailwind push in km/h from headwindComponent().
@@ -47,4 +52,26 @@ export function gradientColor(component, scaleMax = 22) {
 
 export function rgbCss([r, g, b], alpha = 1) {
   return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+const COMPASS_POINTS = [
+  "Noord", "Noordnoordoost", "Noordoost", "Oostnoordoost",
+  "Oost", "Oostzuidoost", "Zuidoost", "Zuidzuidoost",
+  "Zuid", "Zuidzuidwest", "Zuidwest", "Westzuidwest",
+  "West", "Westnoordwest", "Noordwest", "Noordnoordwest",
+];
+
+// deg is "blowing from" direction, meteorological convention.
+export function compassLabel(deg) {
+  const idx = Math.round(((deg % 360) / 22.5)) % 16;
+  return COMPASS_POINTS[idx];
+}
+
+// Beaufort scale from mean wind speed in km/h (standard upper-bound table).
+const BEAUFORT_THRESHOLDS = [1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118];
+export function beaufort(kmh) {
+  for (let b = 0; b < BEAUFORT_THRESHOLDS.length; b++) {
+    if (kmh < BEAUFORT_THRESHOLDS[b]) return b;
+  }
+  return 12;
 }
