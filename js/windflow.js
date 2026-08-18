@@ -2,10 +2,22 @@
 // wind forecasts at sparse points along the route (not a full grid), the field
 // at any location is an inverse-distance-weighted blend of the nearest samples
 // — a reasonable local approximation, not a true meteorological field.
-export function createWindFlow(map, containerEl) {
+export function createWindFlow(map) {
+  // A manually z-indexed sibling element to the map container turned out to
+  // stack inconsistently across browsers (rendered fine here, but reported
+  // as hidden behind the tiles — only flashing visible mid zoom-transition,
+  // a classic symptom of a stacking-context mismatch). Leaflet's own pane
+  // system is the browser-tested, correct way to place a custom layer at a
+  // specific depth: it lives inside .leaflet-map-pane alongside the tile
+  // and overlay panes instead of guessing how it composites against them.
+  map.createPane("windFlowPane");
+  const pane = map.getPane("windFlowPane");
+  pane.style.zIndex = 350; // above tilePane (200), below overlayPane (400) / markerPane (600)
+  pane.style.pointerEvents = "none";
+
   const canvas = document.createElement("canvas");
   canvas.className = "wind-flow-canvas";
-  containerEl.appendChild(canvas);
+  pane.appendChild(canvas);
   const ctx = canvas.getContext("2d");
 
   const PARTICLE_COUNT = window.innerWidth < 560 ? 100 : 200;

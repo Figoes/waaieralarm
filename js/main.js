@@ -1,9 +1,9 @@
-import { parseGPX } from "./gpx.js?v=3";
-import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js?v=3";
-import { haversineKm, bearingDeg } from "./geo.js?v=3";
-import { headwindComponent, classify, CLASS_LABEL, CLASS_COLORS, compassLabel, beaufort } from "./wind.js?v=3";
-import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js?v=3";
-import { initMap, invalidateMapSize, renderPlainRoute, renderForecastRoute, getWindFlowStatus } from "./map.js?v=3";
+import { parseGPX } from "./gpx.js?v=4";
+import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js?v=4";
+import { haversineKm, bearingDeg } from "./geo.js?v=4";
+import { headwindComponent, classify, CLASS_LABEL, CLASS_COLORS, compassLabel, beaufort } from "./wind.js?v=4";
+import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js?v=4";
+import { initMap, invalidateMapSize, renderPlainRoute, renderForecastRoute, getWindFlowStatus } from "./map.js?v=4";
 
 const $ = (sel) => document.querySelector(sel);
 const nl = (n, opts) => n.toLocaleString("nl-NL", opts);

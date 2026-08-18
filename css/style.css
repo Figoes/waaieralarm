@@ -336,7 +336,10 @@ a:hover { color: var(--text-muted-on-surface); text-decoration-color: var(--ink)
 .wind-pill .badge svg { width: 12px; height: 12px; }
 .wind-pill .kmh { font-family: var(--font); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 
-.wind-flow-canvas { position: absolute; top: 0; left: 0; z-index: 300; pointer-events: none; }
+/* Depth is set on its Leaflet pane (windFlow.js), not here — a plain
+   sibling z-index stacked inconsistently against Leaflet's own panes
+   across browsers. */
+.wind-flow-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
 .direction-arrow-icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2)); }
 
 /* ---------- Timeline ---------- */

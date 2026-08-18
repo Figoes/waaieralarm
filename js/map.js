@@ -1,6 +1,6 @@
-import { bearingDeg } from "./geo.js?v=3";
-import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js?v=3";
-import { createWindFlow } from "./windflow.js?v=3";
+import { bearingDeg } from "./geo.js?v=4";
+import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js?v=4";
+import { createWindFlow } from "./windflow.js?v=4";
 
 const INK = "#1D3A2E";
 const ACCENT = "#E2542B";
@@ -23,7 +23,6 @@ export function getWindFlowStatus() {
 }
 
 export function initMap(containerId) {
-  const containerEl = document.getElementById(containerId);
   map = L.map(containerId, { zoomControl: false });
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -33,7 +32,7 @@ export function initMap(containerId) {
   map.attributionControl.setPosition("bottomright");
   map.setView([52.05, 5.2], 8);
 
-  windFlow = createWindFlow(map, containerEl);
+  windFlow = createWindFlow(map);
   map.on("resize", () => windFlow.resize());
   window.addEventListener("resize", () => windFlow.resize());
 
