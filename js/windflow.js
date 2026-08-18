@@ -11,7 +11,15 @@ export function createWindFlow(map, containerEl) {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const PARTICLE_COUNT = window.innerWidth < 560 ? 140 : 260;
   const TRAIL_LENGTH = 11;
-  const DEG_PER_KMH_FRAME = 0.0000065;
+
+  // Particles move a fixed number of SCREEN PIXELS per km/h per frame, not a
+  // fixed geographic distance. A fixed lat/lon step per frame looks fine
+  // zoomed into a short route but becomes imperceptibly slow once you zoom
+  // out for a long one — the same real-world distance covers far fewer
+  // pixels. Pixel-space speed keeps the animation visibly moving at any zoom,
+  // which is also how Windy's own flow reads at every zoom level.
+  const PX_PER_KMH_FRAME = 0.06;
+  const MAX_PX_PER_FRAME = 3.2;
 
   let samples = [];
   let particles = [];
@@ -28,23 +36,25 @@ export function createWindFlow(map, containerEl) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  // Returns the local wind as {east, north} km/h components (positive east /
+  // positive north), inverse-distance-weighted from the nearest samples.
   function idwWind(lat, lon) {
     if (samples.length === 0) return null;
     let wSum = 0;
-    let sx = 0;
-    let sy = 0;
+    let east = 0;
+    let north = 0;
     for (const s of samples) {
       const dLat = lat - s.lat;
       const dLon = lon - s.lon;
       const d2 = dLat * dLat + dLon * dLon;
       const w = 1 / Math.max(d2, 0.0002);
-      const rad = (((s.weather.windDir + 180) % 360) * Math.PI) / 180; // "blowing towards"
-      sx += w * Math.sin(rad) * s.weather.windSpeed;
-      sy += w * -Math.cos(rad) * s.weather.windSpeed;
+      const rad = (((s.weather.windDir + 180) % 360) * Math.PI) / 180; // "blowing towards", compass bearing
+      east += w * Math.sin(rad) * s.weather.windSpeed;
+      north += w * Math.cos(rad) * s.weather.windSpeed;
       wSum += w;
     }
     if (!wSum) return null;
-    return { vx: sx / wSum, vy: sy / wSum };
+    return { east: east / wSum, north: north / wSum };
   }
 
   function randomPointInBounds() {
@@ -58,6 +68,21 @@ export function createWindFlow(map, containerEl) {
   function spawn() {
     const p = randomPointInBounds();
     return { lat: p.lat, lon: p.lon, trail: [], life: 30 + Math.random() * 90 };
+  }
+
+  // Advects a particle by its local wind, in screen-pixel space, and writes
+  // the result back as lat/lon (so bounds-checks and IDW sampling — both
+  // geographic — keep working, and the motion self-corrects across pan/zoom).
+  function advect(p, wind) {
+    const speed = Math.hypot(wind.east, wind.north);
+    if (!speed) return;
+    const pxSpeed = Math.min(speed * PX_PER_KMH_FRAME, MAX_PX_PER_FRAME);
+    const pt = map.latLngToContainerPoint([p.lat, p.lon]);
+    pt.x += (wind.east / speed) * pxSpeed;
+    pt.y -= (wind.north / speed) * pxSpeed; // screen y grows downward; north is "up"
+    const next = map.containerPointToLatLng(pt);
+    p.lat = next.lat;
+    p.lon = next.lng;
   }
 
   function strokeTrail(trail, alphaScale) {
@@ -92,10 +117,8 @@ export function createWindFlow(map, containerEl) {
 
     particles.forEach((p) => {
       const wind = idwWind(p.lat, p.lon);
-      if (wind) {
-        p.lat += wind.vy * DEG_PER_KMH_FRAME;
-        p.lon += (wind.vx * DEG_PER_KMH_FRAME) / Math.cos((p.lat * Math.PI) / 180);
-      }
+      if (wind) advect(p, wind);
+
       p.trail.push({ lat: p.lat, lon: p.lon });
       if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
       p.life -= 1;
@@ -125,13 +148,15 @@ export function createWindFlow(map, containerEl) {
     particles.forEach((p) => {
       const wind = idwWind(p.lat, p.lon);
       if (!wind) return;
-      const mag = Math.hypot(wind.vx, wind.vy) || 1;
-      const step = DEG_PER_KMH_FRAME * TRAIL_LENGTH * 8;
-      const tail = {
-        lat: p.lat - (wind.vy / mag) * step * mag,
-        lon: p.lon - ((wind.vx / mag) * step * mag) / Math.cos((p.lat * Math.PI) / 180),
+      const head = map.latLngToContainerPoint([p.lat, p.lon]);
+      const speed = Math.hypot(wind.east, wind.north) || 1;
+      const len = TRAIL_LENGTH * MAX_PX_PER_FRAME * 0.7;
+      const tailPt = {
+        x: head.x - (wind.east / speed) * len,
+        y: head.y + (wind.north / speed) * len,
       };
-      strokeTrail([tail, { lat: p.lat, lon: p.lon }], 0.6);
+      const tail = map.containerPointToLatLng(tailPt);
+      strokeTrail([{ lat: tail.lat, lon: tail.lng }, { lat: p.lat, lon: p.lon }], 0.6);
     });
   }
 
