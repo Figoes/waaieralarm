@@ -36,10 +36,6 @@ function setPlotting(isPlotting) {
 
 $("#importBtn").addEventListener("click", () => $("#gpxInput").click());
 
-$("#stravaBtn").addEventListener("click", () => {
-  showError("Strava import isn't connected yet — for now, export a GPX from Strava and import it here.");
-});
-
 $("#gpxInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;

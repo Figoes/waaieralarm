@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Windward</title>
+  <title>Waaieralarm</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -12,10 +12,8 @@
   <nav class="topnav">
     <div class="wordmark">
       <span class="glyph">🚴💨</span>
-      <h1>Windward</h1>
-      <span class="companion-tag">Companion for Strava routes</span>
+      <h1>Waaieralarm</h1>
     </div>
-    <button class="btn-plot" id="plotBtn" type="button" disabled>Plot forecast</button>
   </nav>
 
   <div class="page">
@@ -33,7 +31,6 @@
         <div class="gpx-actions">
           <input type="file" id="gpxInput" accept=".gpx" hidden />
           <button class="btn-import" id="importBtn" type="button">⬆ Import GPX</button>
-          <button class="swap" id="stravaBtn" type="button">or import from Strava</button>
         </div>
       </div>
       <div class="tb-field">
@@ -47,6 +44,7 @@
           <span class="pace-unit">km/h</span>
         </div>
       </div>
+      <button class="btn-plot" id="plotBtn" type="button" disabled>Plot forecast</button>
     </section>
 
     <div class="error-banner" id="errorBanner" hidden></div>
@@ -99,7 +97,7 @@
     </div>
   </div>
 
-  <footer class="note">Windward is an independent app inspired by Strava's layout patterns; it is not affiliated with or endorsed by Strava.<br>Weather data from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Map data from OpenStreetMap contributors.</footer>
+  <footer class="note">Waaieralarm is an independent app inspired by Strava's layout patterns; it is not affiliated with or endorsed by Strava.<br>Weather data from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Map data from OpenStreetMap contributors.</footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="js/main.js"></script>
