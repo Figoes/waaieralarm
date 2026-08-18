@@ -9,9 +9,9 @@ export function createWindFlow(map, containerEl) {
   const ctx = canvas.getContext("2d");
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const PARTICLE_COUNT = window.innerWidth < 560 ? 50 : 90;
-  const TRAIL_LENGTH = 6;
-  const DEG_PER_KMH_FRAME = 0.0000028;
+  const PARTICLE_COUNT = window.innerWidth < 560 ? 70 : 120;
+  const TRAIL_LENGTH = 8;
+  const DEG_PER_KMH_FRAME = 0.0000045;
 
   let samples = [];
   let particles = [];
@@ -34,7 +34,6 @@ export function createWindFlow(map, containerEl) {
     let sx = 0;
     let sy = 0;
     for (const s of samples) {
-      if (!s.weather) continue;
       const dLat = lat - s.lat;
       const dLon = lon - s.lon;
       const d2 = dLat * dLat + dLon * dLon;
@@ -44,7 +43,7 @@ export function createWindFlow(map, containerEl) {
       sy += w * -Math.cos(rad) * s.weather.windSpeed;
       wSum += w;
     }
-    if (wSum === 0) return null;
+    if (!wSum) return null;
     return { vx: sx / wSum, vy: sy / wSum };
   }
 
@@ -61,10 +60,33 @@ export function createWindFlow(map, containerEl) {
     return { lat: p.lat, lon: p.lon, trail: [], life: 30 + Math.random() * 90 };
   }
 
+  function strokeTrail(trail, alphaScale) {
+    for (let i = 1; i < trail.length; i++) {
+      const a = map.latLngToContainerPoint([trail[i - 1].lat, trail[i - 1].lon]);
+      const b = map.latLngToContainerPoint([trail[i].lat, trail[i].lon]);
+      const alpha = (i / trail.length) * alphaScale;
+      // A light halo under the colored stroke keeps particles legible over
+      // both dark and light map tiles, the way Windy's streamlines read on
+      // any basemap.
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(13, 116, 201, ${alpha})`;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+
   function step() {
     const bounds = map.getBounds();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 1.4;
     ctx.lineCap = "round";
 
     particles.forEach((p) => {
@@ -87,19 +109,29 @@ export function createWindFlow(map, containerEl) {
         return;
       }
 
-      for (let i = 1; i < p.trail.length; i++) {
-        const a = map.latLngToContainerPoint([p.trail[i - 1].lat, p.trail[i - 1].lon]);
-        const b = map.latLngToContainerPoint([p.trail[i].lat, p.trail[i].lon]);
-        const alpha = (i / p.trail.length) * 0.45;
-        ctx.strokeStyle = `rgba(13, 116, 201, ${alpha})`;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      }
+      strokeTrail(p.trail, 0.75);
     });
 
     rafId = running ? requestAnimationFrame(step) : null;
+  }
+
+  // Respects prefers-reduced-motion by never animating, but still shows a
+  // single static frame of short strokes so wind direction reads at a
+  // glance instead of the map just looking broken/empty.
+  function drawStaticFrame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineCap = "round";
+    particles.forEach((p) => {
+      const wind = idwWind(p.lat, p.lon);
+      if (!wind) return;
+      const mag = Math.hypot(wind.vx, wind.vy) || 1;
+      const step = DEG_PER_KMH_FRAME * TRAIL_LENGTH * 8;
+      const tail = {
+        lat: p.lat - (wind.vy / mag) * step * mag,
+        lon: p.lon - ((wind.vx / mag) * step * mag) / Math.cos((p.lat * Math.PI) / 180),
+      };
+      strokeTrail([tail, { lat: p.lat, lon: p.lon }], 0.6);
+    });
   }
 
   return {
@@ -107,9 +139,14 @@ export function createWindFlow(map, containerEl) {
       samples = newSamples.filter((s) => s.weather);
     },
     start() {
-      if (running || reduceMotion || samples.length === 0) return;
+      if (samples.length === 0) return;
       resize();
       particles = Array.from({ length: PARTICLE_COUNT }, spawn);
+      if (reduceMotion) {
+        drawStaticFrame();
+        return;
+      }
+      if (running) return;
       running = true;
       step();
     },
