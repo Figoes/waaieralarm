@@ -1,6 +1,6 @@
-import { bearingDeg } from "./geo.js";
-import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js";
-import { createWindFlow } from "./windflow.js";
+import { bearingDeg } from "./geo.js?v=2";
+import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js?v=2";
+import { createWindFlow } from "./windflow.js?v=2";
 
 const INK = "#1D3A2E";
 const ACCENT = "#E2542B";
