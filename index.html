@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Windward</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <nav class="topnav">
+    <div class="wordmark">
+      <span class="glyph">🚴💨</span>
+      <h1>Windward</h1>
+      <span class="companion-tag">Companion for Strava routes</span>
+    </div>
+    <button class="btn-plot" id="plotBtn" type="button" disabled>Plot forecast</button>
+  </nav>
+
+  <div class="page">
+
+    <section class="card top-band">
+      <div class="tb-route">
+        <span class="route-icon-sm">🗺️</span>
+        <div style="min-width:0;">
+          <div class="route-name-sm" id="routeName">No route loaded</div>
+          <div class="route-stats-sm" id="routeStats">Import a GPX file to get started</div>
+        </div>
+      </div>
+      <div class="tb-field">
+        <label for="gpxInput">GPX file</label>
+        <div class="gpx-actions">
+          <input type="file" id="gpxInput" accept=".gpx" hidden />
+          <button class="btn-import" id="importBtn" type="button">⬆ Import GPX</button>
+          <button class="swap" id="stravaBtn" type="button">or import from Strava</button>
+        </div>
+      </div>
+      <div class="tb-field">
+        <label for="start">Departure</label>
+        <input id="start" type="datetime-local" />
+      </div>
+      <div class="tb-field">
+        <label for="pace">Average pace</label>
+        <div class="pace-field">
+          <input id="pace" type="number" value="25" min="10" max="45" />
+          <span class="pace-unit">km/h</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="error-banner" id="errorBanner" hidden></div>
+
+    <div class="layout">
+
+      <aside class="sidebar">
+        <div class="card outlook-card">
+          <div class="card-title">7-day wind outlook</div>
+          <div id="outlookBody">
+            <span class="outlook-placeholder">Import a route to see the week ahead</span>
+          </div>
+        </div>
+
+        <div class="card legend-card">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--tail-green);"></span>Tailwind</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--cross-amber);"></span>Crosswind</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--head-red);"></span>Headwind</div>
+        </div>
+      </aside>
+
+      <main class="main">
+
+        <section class="card route-panel">
+          <span class="panel-label">Wind exposure</span>
+          <div class="wind-chip" id="windChip" hidden>
+            <span class="icon">
+              <svg viewBox="0 0 24 24" width="14" height="14"><g id="windChipArrow" transform="translate(12,12) rotate(0)"><line x1="0" y1="7" x2="0" y2="-8" stroke="var(--wind-blue)" stroke-width="2.2" stroke-linecap="round"/><path d="M0,-8 L-4,-2 L4,-2 Z" fill="var(--wind-blue)"/></g></svg>
+            </span>
+            <span class="text">
+              <div class="value" id="windChipValue">–</div>
+              <div class="label">Prevailing wind</div>
+            </span>
+          </div>
+          <div id="map"></div>
+          <div class="map-empty-hint" id="mapEmptyHint">Upload a GPX file to see your route</div>
+        </section>
+
+        <section>
+          <div class="timeline-head">
+            <h2>Forecast along the route</h2>
+            <span class="hint">scroll for full route →</span>
+          </div>
+          <div class="timeline" id="timeline">
+            <span class="timeline-placeholder">Plot the forecast to see wind and weather along your ride</span>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="note">Windward is an independent app inspired by Strava's layout patterns; it is not affiliated with or endorsed by Strava.<br>Weather data from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>. Map data from OpenStreetMap contributors.</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
