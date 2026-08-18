@@ -8,18 +8,16 @@ export function createWindFlow(map, containerEl) {
   containerEl.appendChild(canvas);
   const ctx = canvas.getContext("2d");
 
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const PARTICLE_COUNT = window.innerWidth < 560 ? 140 : 260;
-  const TRAIL_LENGTH = 11;
+  const PARTICLE_COUNT = window.innerWidth < 560 ? 100 : 200;
+  const TRAIL_LENGTH = 10;
 
-  // Particles move a fixed number of SCREEN PIXELS per km/h per frame, not a
-  // fixed geographic distance. A fixed lat/lon step per frame looks fine
-  // zoomed into a short route but becomes imperceptibly slow once you zoom
-  // out for a long one — the same real-world distance covers far fewer
-  // pixels. Pixel-space speed keeps the animation visibly moving at any zoom,
-  // which is also how Windy's own flow reads at every zoom level.
+  // Pixels per km/h per frame, not a fixed geographic distance — a fixed
+  // lat/lon step per frame looks fine zoomed into a short route but becomes
+  // imperceptibly slow once you zoom out for a long one, since the same
+  // real-world distance covers far fewer pixels.
   const PX_PER_KMH_FRAME = 0.06;
   const MAX_PX_PER_FRAME = 3.2;
+  const EDGE_MARGIN = 40; // px of slack around the canvas before a particle respawns
 
   let samples = [];
   let particles = [];
@@ -57,107 +55,80 @@ export function createWindFlow(map, containerEl) {
     return { east: east / wSum, north: north / wSum };
   }
 
-  function randomPointInBounds() {
-    const b = map.getBounds();
-    return {
-      lat: b.getSouth() + Math.random() * (b.getNorth() - b.getSouth()),
-      lon: b.getWest() + Math.random() * (b.getEast() - b.getWest()),
-    };
-  }
-
   function spawn() {
-    const p = randomPointInBounds();
-    return { lat: p.lat, lon: p.lon, trail: [], life: 30 + Math.random() * 90 };
+    const b = map.getBounds();
+    const lat = b.getSouth() + Math.random() * (b.getNorth() - b.getSouth());
+    const lon = b.getWest() + Math.random() * (b.getEast() - b.getWest());
+    const pt = map.latLngToContainerPoint([lat, lon]);
+    return { x: pt.x, y: pt.y, trail: [], life: 30 + Math.random() * 90 };
   }
 
-  // Advects a particle by its local wind, in screen-pixel space, and writes
-  // the result back as lat/lon (so bounds-checks and IDW sampling — both
-  // geographic — keep working, and the motion self-corrects across pan/zoom).
-  function advect(p, wind) {
-    const speed = Math.hypot(wind.east, wind.north);
-    if (!speed) return;
-    const pxSpeed = Math.min(speed * PX_PER_KMH_FRAME, MAX_PX_PER_FRAME);
-    const pt = map.latLngToContainerPoint([p.lat, p.lon]);
-    pt.x += (wind.east / speed) * pxSpeed;
-    pt.y -= (wind.north / speed) * pxSpeed; // screen y grows downward; north is "up"
-    const next = map.containerPointToLatLng(pt);
-    p.lat = next.lat;
-    p.lon = next.lng;
-  }
+  // Draws one particle's trail as two single strokes (a dark halo pass, then
+  // a white pass) using a gradient for the fade, instead of one stroke() call
+  // per segment. Trail points are already screen pixels — particles live in
+  // pixel space (see step()), not lat/lon, so no per-frame projection needed.
+  function strokeTrail(trail) {
+    if (trail.length < 2) return;
+    const first = trail[0];
+    const last = trail[trail.length - 1];
 
-  function strokeTrail(trail, alphaScale) {
-    for (let i = 1; i < trail.length; i++) {
-      const a = map.latLngToContainerPoint([trail[i - 1].lat, trail[i - 1].lon]);
-      const b = map.latLngToContainerPoint([trail[i].lat, trail[i].lon]);
-      const alpha = (i / trail.length) * alphaScale;
-      // Windy-style: a bright white streak with a thin dark outline
-      // underneath, so it reads on any basemap tile — light or dark —
-      // rather than blending into roads/land the way a single flat color
-      // does.
-      ctx.strokeStyle = `rgba(15, 30, 24, ${alpha * 0.55})`;
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
+    ctx.beginPath();
+    trail.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
 
-      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
+    const halo = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
+    halo.addColorStop(0, "rgba(15, 30, 24, 0)");
+    halo.addColorStop(1, "rgba(15, 30, 24, 0.5)");
+    ctx.strokeStyle = halo;
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+
+    const line = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
+    line.addColorStop(0, "rgba(255, 255, 255, 0)");
+    line.addColorStop(1, "rgba(255, 255, 255, 0.9)");
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
   }
 
   function step() {
-    const bounds = map.getBounds();
+    const size = map.getSize();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
     particles.forEach((p) => {
-      const wind = idwWind(p.lat, p.lon);
-      if (wind) advect(p, wind);
+      // Sample wind at the particle's current geographic position — read
+      // only, never written back, so Leaflet's pixel rounding here can't
+      // erase the sub-pixel motion accumulated below.
+      const latlng = map.containerPointToLatLng([p.x, p.y]);
+      const wind = idwWind(latlng.lat, latlng.lng);
 
-      p.trail.push({ lat: p.lat, lon: p.lon });
-      if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
+      if (wind) {
+        const speed = Math.hypot(wind.east, wind.north);
+        if (speed) {
+          const pxSpeed = Math.min(speed * PX_PER_KMH_FRAME, MAX_PX_PER_FRAME);
+          p.x += (wind.east / speed) * pxSpeed;
+          p.y -= (wind.north / speed) * pxSpeed; // screen y grows downward; north is "up"
+        }
+      }
+
       p.life -= 1;
-
-      const outOfView = !bounds.contains([p.lat, p.lon]);
+      const outOfView = p.x < -EDGE_MARGIN || p.x > size.x + EDGE_MARGIN || p.y < -EDGE_MARGIN || p.y > size.y + EDGE_MARGIN;
       if (p.life <= 0 || outOfView || !wind) {
         const fresh = spawn();
-        p.lat = fresh.lat;
-        p.lon = fresh.lon;
+        p.x = fresh.x;
+        p.y = fresh.y;
         p.trail = [];
         p.life = fresh.life;
         return;
       }
 
-      strokeTrail(p.trail, 0.9);
+      p.trail.push({ x: p.x, y: p.y });
+      if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
+      strokeTrail(p.trail);
     });
 
     rafId = running ? requestAnimationFrame(step) : null;
-  }
-
-  // Respects prefers-reduced-motion by never animating, but still shows a
-  // single static frame of short strokes so wind direction reads at a
-  // glance instead of the map just looking broken/empty.
-  function drawStaticFrame() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineCap = "round";
-    particles.forEach((p) => {
-      const wind = idwWind(p.lat, p.lon);
-      if (!wind) return;
-      const head = map.latLngToContainerPoint([p.lat, p.lon]);
-      const speed = Math.hypot(wind.east, wind.north) || 1;
-      const len = TRAIL_LENGTH * MAX_PX_PER_FRAME * 0.7;
-      const tailPt = {
-        x: head.x - (wind.east / speed) * len,
-        y: head.y + (wind.north / speed) * len,
-      };
-      const tail = map.containerPointToLatLng(tailPt);
-      strokeTrail([{ lat: tail.lat, lon: tail.lng }, { lat: p.lat, lon: p.lon }], 0.6);
-    });
   }
 
   return {
@@ -165,14 +136,9 @@ export function createWindFlow(map, containerEl) {
       samples = newSamples.filter((s) => s.weather);
     },
     start() {
-      if (samples.length === 0) return;
+      if (samples.length === 0 || running) return;
       resize();
       particles = Array.from({ length: PARTICLE_COUNT }, spawn);
-      if (reduceMotion) {
-        drawStaticFrame();
-        return;
-      }
-      if (running) return;
       running = true;
       step();
     },
