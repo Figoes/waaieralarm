@@ -60,9 +60,9 @@
         </div>
 
         <div class="card legend-card">
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--tail-green);"></span>Tailwind</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--cross-amber);"></span>Crosswind</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--head-red);"></span>Headwind</div>
+          <div class="card-title">Wind impact</div>
+          <div class="wind-scale-bar"></div>
+          <div class="wind-scale-labels"><span>Headwind</span><span>Tailwind</span></div>
         </div>
       </aside>
 
@@ -81,6 +81,10 @@
           </div>
           <div id="map"></div>
           <div class="map-empty-hint" id="mapEmptyHint">Upload a GPX file to see your route</div>
+          <div class="map-legend" id="mapLegend" hidden>
+            <div class="wind-scale-bar"></div>
+            <div class="wind-scale-labels"><span>Headwind</span><span>Tailwind</span></div>
+          </div>
         </section>
 
         <section>

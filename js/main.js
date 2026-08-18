@@ -1,6 +1,6 @@
 import { parseGPX } from "./gpx.js";
 import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js";
-import { headwindComponent, classify, CLASS_LABEL } from "./wind.js";
+import { headwindComponent, classify, CLASS_LABEL, gradientColor, rgbCss } from "./wind.js";
 import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js";
 import { initMap, renderPlainRoute, renderForecastRoute } from "./map.js";
 
@@ -57,6 +57,7 @@ $("#gpxInput").addEventListener("change", async (e) => {
     $("#plotBtn").disabled = false;
     $("#timeline").innerHTML = '<span class="timeline-placeholder">Plot the forecast to see wind and weather along your ride</span>';
     $("#windChip").hidden = true;
+    $("#mapLegend").hidden = true;
 
     renderOutlookLoading();
     fetchDailyOutlook(points[0].lat, points[0].lon)
@@ -104,8 +105,9 @@ $("#plotBtn").addEventListener("click", async () => {
         return;
       }
       anyWeather = true;
-      const { angleDiff } = headwindComponent(s.bearing, s.weather.windDir, s.weather.windSpeed);
+      const { angleDiff, component } = headwindComponent(s.bearing, s.weather.windDir, s.weather.windSpeed);
       s.cls = classify(angleDiff);
+      s.component = component;
     });
 
     if (!anyWeather) {
@@ -117,6 +119,7 @@ $("#plotBtn").addEventListener("click", async () => {
     renderForecastRoute(state.points, withWeather);
     renderTimeline(withWeather);
     updatePrevailingWind(withWeather);
+    $("#mapLegend").hidden = false;
   } catch (err) {
     showError(err.message || "Could not fetch the forecast.");
   } finally {
@@ -148,6 +151,7 @@ function renderTimeline(samples) {
     }
     const rotate = (s.weather.windDir + 180) % 360;
     const cls = s.cls || "cross";
+    const rgb = gradientColor(s.component ?? 0);
     card.innerHTML = `
       <div class="wp-top">
         <span class="wp-dist">${s.distanceKm.toFixed(0)} km</span>
@@ -158,7 +162,7 @@ function renderTimeline(samples) {
         <span class="speed">${Math.round(s.weather.windSpeed)}<small> km/h</small></span>
       </div>
       <div class="wp-weather"><span>${Math.round(s.weather.temp)}°C</span><span>${Math.round(s.weather.precipProb)}%</span></div>
-      <span class="wp-badge ${cls}">${CLASS_LABEL[cls]}</span>
+      <span class="wp-badge" style="background:${rgbCss(rgb, 0.14)}; color:${rgbCss(rgb)};">${CLASS_LABEL[cls]}</span>
     `;
     el.appendChild(card);
   });
