@@ -1,9 +1,9 @@
-import { parseGPX } from "./gpx.js?v=2";
-import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js?v=2";
-import { haversineKm, bearingDeg } from "./geo.js?v=2";
-import { headwindComponent, classify, CLASS_LABEL, CLASS_COLORS, compassLabel, beaufort } from "./wind.js?v=2";
-import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js?v=2";
-import { initMap, invalidateMapSize, renderPlainRoute, renderForecastRoute } from "./map.js?v=2";
+import { parseGPX } from "./gpx.js?v=3";
+import { annotateDistances, elevationGainM, sampleRoute, estimateArrivals } from "./route.js?v=3";
+import { haversineKm, bearingDeg } from "./geo.js?v=3";
+import { headwindComponent, classify, CLASS_LABEL, CLASS_COLORS, compassLabel, beaufort } from "./wind.js?v=3";
+import { fetchForecastForSamples, fetchDailyOutlook } from "./weather.js?v=3";
+import { initMap, invalidateMapSize, renderPlainRoute, renderForecastRoute, getWindFlowStatus } from "./map.js?v=3";
 
 const $ = (sel) => document.querySelector(sel);
 const nl = (n, opts) => n.toLocaleString("nl-NL", opts);
@@ -135,6 +135,7 @@ $("#plotBtn").addEventListener("click", async () => {
     updatePrevailingWind(withWeather);
     updateImpactSummary(state.points, withWeather);
     $("#mapLegend").hidden = false;
+    startFlowDebug();
   } catch (err) {
     showError(err.message || "Kon de verwachting niet ophalen.");
   } finally {
@@ -258,4 +259,25 @@ function renderOutlook(days, points) {
     });
     row.appendChild(btn);
   });
+}
+
+// Temporary diagnostic readout for the wind-flow animation — shows what's
+// actually happening on this device (particle count, frames rendered,
+// any error) instead of guessing blind when someone reports "no animation".
+let flowDebugInterval = null;
+function startFlowDebug() {
+  if (flowDebugInterval) clearInterval(flowDebugInterval);
+  const el = $("#flowDebug");
+  el.hidden = false;
+  flowDebugInterval = setInterval(() => {
+    const s = getWindFlowStatus();
+    if (!s) {
+      el.textContent = "wind-flow: geen instantie";
+      return;
+    }
+    el.textContent =
+      `wind-flow: draait=${s.running} deeltjes=${s.particleCount} samples=${s.sampleCount} ` +
+      `frames=${s.frameCount} laatst-getekend=${s.drawnLastFrame} canvas=${s.canvasSize.join("x")} ` +
+      `verminderde-beweging=${s.reducedMotion}${s.lastError ? ` FOUT: ${s.lastError}` : ""}`;
+  }, 1000);
 }

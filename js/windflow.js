@@ -23,6 +23,9 @@ export function createWindFlow(map, containerEl) {
   let particles = [];
   let running = false;
   let rafId = null;
+  let frameCount = 0;
+  let drawnLastFrame = 0;
+  let lastError = null;
 
   function resize() {
     const size = map.getSize();
@@ -90,44 +93,63 @@ export function createWindFlow(map, containerEl) {
     ctx.stroke();
   }
 
+  function advanceParticle(p, size) {
+    // Sample wind at the particle's current geographic position — read
+    // only, never written back, so Leaflet's pixel rounding here can't
+    // erase the sub-pixel motion accumulated below.
+    const latlng = map.containerPointToLatLng([p.x, p.y]);
+    const wind = idwWind(latlng.lat, latlng.lng);
+
+    if (wind) {
+      const speed = Math.hypot(wind.east, wind.north);
+      if (speed) {
+        const pxSpeed = Math.min(speed * PX_PER_KMH_FRAME, MAX_PX_PER_FRAME);
+        p.x += (wind.east / speed) * pxSpeed;
+        p.y -= (wind.north / speed) * pxSpeed; // screen y grows downward; north is "up"
+      }
+    }
+
+    p.life -= 1;
+    const outOfView = p.x < -EDGE_MARGIN || p.x > size.x + EDGE_MARGIN || p.y < -EDGE_MARGIN || p.y > size.y + EDGE_MARGIN;
+    if (p.life <= 0 || outOfView || !wind) {
+      const fresh = spawn();
+      p.x = fresh.x;
+      p.y = fresh.y;
+      p.trail = [];
+      p.life = fresh.life;
+      return false;
+    }
+
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
+    strokeTrail(p.trail);
+    return true;
+  }
+
   function step() {
-    const size = map.getSize();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    frameCount += 1;
+    let drawn = 0;
+    try {
+      const size = map.getSize();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
-    particles.forEach((p) => {
-      // Sample wind at the particle's current geographic position — read
-      // only, never written back, so Leaflet's pixel rounding here can't
-      // erase the sub-pixel motion accumulated below.
-      const latlng = map.containerPointToLatLng([p.x, p.y]);
-      const wind = idwWind(latlng.lat, latlng.lng);
-
-      if (wind) {
-        const speed = Math.hypot(wind.east, wind.north);
-        if (speed) {
-          const pxSpeed = Math.min(speed * PX_PER_KMH_FRAME, MAX_PX_PER_FRAME);
-          p.x += (wind.east / speed) * pxSpeed;
-          p.y -= (wind.north / speed) * pxSpeed; // screen y grows downward; north is "up"
+      particles.forEach((p) => {
+        // One bad particle (e.g. a stray NaN) must not take the whole loop
+        // down with it — without this, a single thrown error here means
+        // the requestAnimationFrame(step) call below never runs again and
+        // the animation silently stops forever with no visible sign why.
+        try {
+          if (advanceParticle(p, size)) drawn += 1;
+        } catch (err) {
+          lastError = String(err);
         }
-      }
-
-      p.life -= 1;
-      const outOfView = p.x < -EDGE_MARGIN || p.x > size.x + EDGE_MARGIN || p.y < -EDGE_MARGIN || p.y > size.y + EDGE_MARGIN;
-      if (p.life <= 0 || outOfView || !wind) {
-        const fresh = spawn();
-        p.x = fresh.x;
-        p.y = fresh.y;
-        p.trail = [];
-        p.life = fresh.life;
-        return;
-      }
-
-      p.trail.push({ x: p.x, y: p.y });
-      if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
-      strokeTrail(p.trail);
-    });
-
+      });
+    } catch (err) {
+      lastError = String(err);
+    }
+    drawnLastFrame = drawn;
     rafId = running ? requestAnimationFrame(step) : null;
   }
 
@@ -149,5 +171,17 @@ export function createWindFlow(map, containerEl) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
     resize,
+    getStatus() {
+      return {
+        running,
+        particleCount: particles.length,
+        sampleCount: samples.length,
+        frameCount,
+        drawnLastFrame,
+        lastError,
+        canvasSize: [canvas.width, canvas.height],
+        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      };
+    },
   };
 }
