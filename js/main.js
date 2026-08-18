@@ -77,6 +77,7 @@ $("#gpxInput").addEventListener("change", async (e) => {
       .then((daily) => renderOutlook(daily, points))
       .catch((err) => showError(err.message));
   } catch (err) {
+    console.error("GPX import failed:", err);
     showError(err.message || "Kon dit GPX-bestand niet lezen.");
     state.points = null;
     $("#plotBtn").disabled = true;
