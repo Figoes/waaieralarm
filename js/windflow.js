@@ -35,9 +35,6 @@ export function createWindFlow(map) {
   let particles = [];
   let running = false;
   let rafId = null;
-  let frameCount = 0;
-  let drawnLastFrame = 0;
-  let lastError = null;
 
   function resize() {
     const size = map.getSize();
@@ -129,18 +126,15 @@ export function createWindFlow(map) {
       p.y = fresh.y;
       p.trail = [];
       p.life = fresh.life;
-      return false;
+      return;
     }
 
     p.trail.push({ x: p.x, y: p.y });
     if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
     strokeTrail(p.trail);
-    return true;
   }
 
   function step() {
-    frameCount += 1;
-    let drawn = 0;
     try {
       const size = map.getSize();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -153,15 +147,14 @@ export function createWindFlow(map) {
         // the requestAnimationFrame(step) call below never runs again and
         // the animation silently stops forever with no visible sign why.
         try {
-          if (advanceParticle(p, size)) drawn += 1;
-        } catch (err) {
-          lastError = String(err);
+          advanceParticle(p, size);
+        } catch {
+          // skip this particle for this frame
         }
       });
-    } catch (err) {
-      lastError = String(err);
+    } catch {
+      // skip this frame
     }
-    drawnLastFrame = drawn;
     rafId = running ? requestAnimationFrame(step) : null;
   }
 
@@ -183,17 +176,5 @@ export function createWindFlow(map) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     },
     resize,
-    getStatus() {
-      return {
-        running,
-        particleCount: particles.length,
-        sampleCount: samples.length,
-        frameCount,
-        drawnLastFrame,
-        lastError,
-        canvasSize: [canvas.width, canvas.height],
-        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-      };
-    },
   };
 }

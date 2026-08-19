@@ -1,6 +1,6 @@
-import { bearingDeg } from "./geo.js?v=4";
-import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js?v=4";
-import { createWindFlow } from "./windflow.js?v=4";
+import { bearingDeg } from "./geo.js?v=5";
+import { gradientColor, rgbCss, classify, CLASS_COLORS } from "./wind.js?v=5";
+import { createWindFlow } from "./windflow.js?v=5";
 
 const INK = "#1D3A2E";
 const ACCENT = "#E2542B";
@@ -16,10 +16,6 @@ let windFlow = null;
 
 export function invalidateMapSize() {
   if (map) map.invalidateSize();
-}
-
-export function getWindFlowStatus() {
-  return windFlow ? windFlow.getStatus() : null;
 }
 
 export function initMap(containerId) {
