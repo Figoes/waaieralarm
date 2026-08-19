@@ -20,7 +20,7 @@ export function createWindFlow(map) {
   pane.appendChild(canvas);
   const ctx = canvas.getContext("2d");
 
-  const PARTICLE_COUNT = window.innerWidth < 560 ? 100 : 200;
+  const PARTICLE_COUNT = window.innerWidth < 560 ? 150 : 300;
   const TRAIL_LENGTH = 10;
 
   // Pixels per km/h per frame, not a fixed geographic distance — a fixed
